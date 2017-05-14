@@ -77,7 +77,7 @@ if ( strcmp(hash(HASHING_TYPE, $hKey), PASSWD_HASH) != 0 )
 class NslServer
 {
   /* binary interpretation of metric is used, stats relate to disk etc
-     thus 2014 bytes per KB is used instead of the SI standard of 1,000 */
+     thus 1024 bytes per KB is used instead of the SI standard of 1,000 */
   const BYTES_PER_KB = 1024;
 
   /* process name list */
