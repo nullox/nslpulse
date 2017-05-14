@@ -90,12 +90,12 @@ class NslServer
       function sys_getloadavg() {
         exec('wmic cpu get LoadPercentage', $p);
         return $p[1] / 100;
-      }
-      $load = sys_getloadavg();
-      if ( is_array($load) )
-        $load = $load[0];
-      return $load;
+      }      
     }
+    $load = sys_getloadavg();
+    if ( is_array($load) )
+      $load = $load[0];
+    return $load;
   }
 
   /* queries the running state of a database service, returns
