@@ -147,7 +147,12 @@ class NslServer
       return time() - $btasut;
     }
     else {
-      return exec("awk '{print $1}' /proc/uptime");
+      $uis = exec("awk '{print $1}' /proc/uptime");
+      if ( strpos($uis, '.') !== false ) {
+        $uis = explode('.', $uis);
+        $uis = $uis[0];
+      }
+      return $uis;
     }
   }
 
