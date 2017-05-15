@@ -64,6 +64,7 @@ Path example: http://IP_ADDR_HERE/nslserva.php?hKey=NSLPULSE_PUBLIC_DEMO
 define('PASSWD_HASH', '6ccfeba6a68928d2de83264c80b412161cd5e771be13a2d1f9411affdfb679cb');
 define('HASHING_TYPE', 'gost');
 define('DATA_DELIMITOR', ':');
+define('DB_PROCESSES', serialize(array('mysql', 'mysqld.exe', 'mysqld')));
 
 $hKey = isset($_REQUEST['hKey']) ? $_REQUEST['hKey'] : '';
 
@@ -79,9 +80,6 @@ class NslServer
   /* binary interpretation of metric is used, stats relate to disk etc
      thus 1024 bytes per KB is used instead of the SI standard of 1,000 */
   const BYTES_PER_KB = 1024;
-
-  /* process name list */
-  const DB_PROCESSES = array('mysql', 'mysqld.exe', 'mysqld');
 
   /* returns percentile of load (mean across cores) */
   public static function CpuLoad() {
@@ -101,12 +99,13 @@ class NslServer
   /* queries the running state of a database service, returns
      false if no expectant process is found */
   public static function DatabaseCheck() {
+    $arrayt = unserialize(DB_PROCESSES);
     if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
       exec('tasklist', $p);
       foreach($p as $processEntry) {
         $processEntry = explode(' ', $processEntry);
         $processEntry = $processEntry[0];
-        foreach(NslServer::DB_PROCESSES as $dbProcess) {
+        foreach($arrayt as $dbProcess) {
           if ( strcmp($processEntry, $dbProcess) == 0 )
             return true;
         }
@@ -114,7 +113,7 @@ class NslServer
       return false;
     }
     else {
-      foreach(NslServer::DB_PROCESSES as $dbProcess) {
+      foreach($arrayt as $dbProcess) {
         if ( is_numeric(trim(exec('pgrep '. $dbProcess))) )
           return true;
       }
