@@ -164,7 +164,7 @@ class NslServer
       $tpm = (int)($q[1] / NslServer::BYTES_PER_KB);
     }
     else {
-      $data = explode('\n', trim(file_get_contents("/proc/meminfo")));
+      $data = explode("\n", trim(file_get_contents("/proc/meminfo")));
       $meminfo = array();
       foreach ($data as $line) {
           list($key, $val) = explode(":", $line);
