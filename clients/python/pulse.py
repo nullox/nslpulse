@@ -12,6 +12,32 @@
 import sys
 import urllib.request
 
+def output_pulse_string(metrics_t, path_t):
+    metrics_t = metrics_t.split(':')
+    if len(metrics_t) == 9:
+        host = path_t
+        host = host.replace('https://', '')
+        host = host.replace('http://', '')
+        host = host.split('/')
+        host = host[0]
+        print("\nis alive...")
+        print('host: '+ host)
+        print('cpu: '+ metrics_t[0])
+        print('database: ' + 'up' if metrics_t[1] == '1' else 'down')
+        print('uptime: '+ metrics_t[2] +' second(s)')
+        print('free disk: '+ str(round(float(metrics_t[4])/1048576,2)) +'gb')
+        print('total disk: '+ str(round(float(metrics_t[3])/1048576,2)) +'gb')
+        print('free ram: '+ str(round(float(metrics_t[7])/1048576,2)) +'gb')
+        print('total ram: '+ str(round(float(metrics_t[6])/1048576,2)) +'gb')
+        print('disk usage: '+ metrics_t[5])
+        print('ram usage: '+ metrics_t[8])
+    else:
+        print('metric string cannot be read...')
+
+# is path via http...
+def is_path_http(path_t):
+    return '/' in path_t
+
 # argument check for path(s)
 if len(sys.argv) < 2:
     print('path(s) parameters are missing')
@@ -26,41 +52,22 @@ for path in paths:
 print("NSL Pulse CLI Reporting Client")
 
 for path in paths:
-    try:
-        path = path.strip()
-        print("\nprobing "+ path)
-        if not path[:4] == 'http':
-            path = 'http://' + path
-        with urllib.request.urlopen(path) as response:
-            metrics = response.read().decode('utf-8')
-            metrics = metrics.split(':')
-            if len(metrics) == 9:
-                host = path
-                host = host.replace('https://', '')
-                host = host.replace('http://', '')
-                host = host.split('/')
-                host = host[0]
-
-                print("\nis alive...")
-                print('host: '+ host)
-                print('cpu: '+ metrics[0])
-                print('database: ' + 'up' if metrics[1] == '1' else 'down')
-                print('uptime: '+ metrics[2] +' second(s)')
-                print('free disk: '+ str(round(float(metrics[4])/1048576,2)) +'gb')
-                print('total disk: '+ str(round(float(metrics[3])/1048576,2)) +'gb')
-                print('free ram: '+ str(round(float(metrics[7])/1048576,2)) +'gb')
-                print('total ram: '+ str(round(float(metrics[6])/1048576,2)) +'gb')
-                print('disk usage: '+ metrics[5])
-                print('ram usage: '+ metrics[8])
-
-            else:
-                print('failed...')
-
-    except urllib2.HTTPError:
-        print('pulse error for '+ path +', HTTPError')
-    except urllib2.URLError:
-        print('pulse error for '+ path +', URLError')
-    except urllib2.HTTPException:
-        print('pulse error for '+ path +', HTTPException')
-    except Exception:
-        print('generic exception whilst probing '+ path)
+    if is_path_http(path):
+        try:
+            path = path.strip()
+            print("\nprobing "+ path)
+            if not path[:4] == 'http':
+                path = 'http://' + path
+            with urllib.request.urlopen(path) as response:
+                metrics = response.read().decode('utf-8')
+                output_pulse_string(metrics, path)
+        except urllib2.HTTPError:
+            print('pulse error for '+ path +', HTTPError')
+        except urllib2.URLError:
+            print('pulse error for '+ path +', URLError')
+        except urllib2.HTTPException:
+            print('pulse error for '+ path +', HTTPException')
+        except Exception:
+            print('generic exception whilst probing '+ path)
+    else:
+        print('non http')
