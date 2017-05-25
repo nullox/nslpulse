@@ -69,7 +69,7 @@ compile on windows: gcc nslserva.c -o nslserva.exe -lpsapi -lws2_32
 
 #elif __linux__
 
-// todo
+#include <stdlib.h>
 
 #endif
 
@@ -358,6 +358,7 @@ int winmain() {
 #elif __linux__
 /* entry point for linux */
 int linmain() {
+  printf("linux ok\n");
   return 0;
 }
 #endif
