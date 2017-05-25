@@ -70,6 +70,50 @@ compile on windows: gcc nslserva.c -o nslserva.exe -lpsapi -lws2_32
 #elif __linux__
 
 #include <stdlib.h>
+#include <linux/kernel.h> /* for struct sysinfo */
+#include <sys/sysinfo.h>
+#include <sys/statvfs.h>
+#include <dirent.h>
+#include <sys/types.h>
+#include <string.h>
+#include <unistd.h>
+
+/* system info struct */
+struct sysinfo s_info;
+
+/* iterate processes in /proc for ident */
+pid_t process_id(const char *pname) {
+  DIR* dir;
+  struct dirent* ent;
+  char* endptr;
+  char buffert[512];
+  if ( !(dir = opendir("/proc")) )
+      return -1;
+  while((ent = readdir(dir)) != NULL) {
+      long lpid = strtol(ent->d_name, &endptr, 10);
+      if (*endptr != '\0')
+          continue;
+      snprintf(buffert, sizeof(buffert), "/proc/%ld/cmdline", lpid);
+      FILE* fp = fopen(buffert, "r");
+      if (fp) {
+          if (fgets(buffert, sizeof(buffert), fp) != NULL) {
+              char *tokent = strtok(buffert, " ");
+              char *splitt = strtok(tokent, "/");
+              while ( splitt != NULL ) {
+                if ( strcmp(splitt, pname) == 0 ) {
+                  fclose(fp);
+                  closedir(dir);
+                  return (pid_t)lpid;
+                }
+                splitt = strtok(NULL, "/");
+              }
+          }
+          fclose(fp);
+      }
+  }
+  closedir(dir);
+  return -1;
+}
 
 #endif
 
@@ -100,6 +144,13 @@ static const char DBPROCESSES[3][11] = {"mysql", "mysqld.exe", "mysqld"};
 /* internal buffer length to handle network-io */
 static const uint16_t SZ_BUFFER_LEN = 512;
 
+/* mount point for checking disk stats */
+#ifdef _WIN32
+static const char DISK_MOUNT_POINT[] = "C:";
+#elif __linux__
+static const char DISK_MOUNT_POINT[] = "/home";
+#endif
+
 /* available memory in kb */
 uint32_t available_memory() {
 #ifdef _WIN32
@@ -107,6 +158,20 @@ uint32_t available_memory() {
   mi.dwLength = sizeof(mi);
   GlobalMemoryStatusEx(&mi);
   return mi.ullAvailPhys / BYTESPERKB;
+#elif __linux__
+  FILE *frd = fopen("/proc/meminfo", "r");
+  if (frd == NULL)
+    return 0;
+  char line_t[256];
+  while (fgets(line_t, sizeof(line_t), frd)) {
+    uint32_t frv;
+    if (sscanf(line_t, "MemAvailable: %d kB", &frv) == 1) {
+      fclose(frd);
+      return frv;
+    }
+  }
+  fclose(frd);
+  return 0;
 #endif
 }
 
@@ -114,8 +179,13 @@ uint32_t available_memory() {
 uint32_t available_space() {
 #ifdef _WIN32
   ULARGE_INTEGER lpFBA, lpTNB, lpTNFB;
-  if ( GetDiskFreeSpaceEx("C:", &lpFBA, &lpTNB, &lpTNFB) )
+  if ( GetDiskFreeSpaceEx(DISK_MOUNT_POINT, &lpFBA, &lpTNB, &lpTNFB) )
     return lpFBA.QuadPart/BYTESPERKB;
+  return 0;
+#elif __linux__
+  struct statvfs stat;
+  if ( statvfs(DISK_MOUNT_POINT, &stat) == 0 )
+    return (stat.f_bsize * stat.f_bfree)/BYTESPERKB;
   return 0;
 #endif
 }
@@ -140,16 +210,22 @@ double cpu_load() {
     return 1.0 - delta;
   }
   return 0.0;
+#elif __linux__
+  int error = sysinfo(&s_info);
+  if ( error == 0 )
+    return s_info.loads[0]/(1<<SI_LOAD_SHIFT);
+  return 0;
 #endif
 }
 
 /* signals that a live database is running */
 uint8_t database_running() {
+  uint32_t q = 0;
 #ifdef _WIN32
   DWORD processIds[1024], bytesNeeded, procCount;
   HANDLE hProcess = NULL;
   TCHAR szProcessName[MAX_PATH] = TEXT("<unknown>");
-  uint32_t p = 0, q = 0;
+  uint32_t p = 0;
   if ( !EnumProcesses(processIds, sizeof(processIds), &bytesNeeded) )
     return 0;
   procCount = bytesNeeded / sizeof(DWORD);
@@ -172,6 +248,12 @@ uint8_t database_running() {
               return 1;
   }}}}}
   return 0;
+#elif __linux__
+  for ( q = 0; q < DBPROCESS_N; q++ ) {
+    if ( process_id(DBPROCESSES[q]) != -1 )
+      return 1;
+  }
+  return 0;
 #endif
 }
 
@@ -179,8 +261,13 @@ uint8_t database_running() {
 uint32_t total_disk_space() {
 #ifdef _WIN32
   ULARGE_INTEGER lpFBA, lpTNB, lpTNFB;
-  if ( GetDiskFreeSpaceEx("C:", &lpFBA, &lpTNB, &lpTNFB) )
+  if ( GetDiskFreeSpaceEx(DISK_MOUNT_POINT, &lpFBA, &lpTNB, &lpTNFB) )
     return lpTNB.QuadPart/BYTESPERKB;
+  return 0;
+#elif __linux__
+  struct statvfs stat;
+  if ( statvfs(DISK_MOUNT_POINT, &stat) == 0 )
+    return (stat.f_blocks * stat.f_frsize)/BYTESPERKB;
   return 0;
 #endif
 }
@@ -192,6 +279,11 @@ uint32_t total_physical_memory() {
   mi.dwLength = sizeof(mi);
   GlobalMemoryStatusEx(&mi);
   return mi.ullTotalPhys / BYTESPERKB;
+#elif __linux__
+  int error = sysinfo(&s_info);
+  if ( error == 0 )
+    return s_info.totalram/BYTESPERKB;
+  return 0;
 #endif
 }
 
@@ -199,6 +291,11 @@ uint32_t total_physical_memory() {
 uint32_t uptime_in_secs() {
 #ifdef _WIN32
   return GetTickCount() / 1000;
+#elif __linux__
+  int error = sysinfo(&s_info);
+  if ( error == 0 )
+    return s_info.uptime;
+  return 0;
 #endif
 }
 
@@ -358,7 +455,9 @@ int winmain() {
 #elif __linux__
 /* entry point for linux */
 int linmain() {
-  printf("linux ok\n");
+  printf("%d\n", database_running());
+  printf("%d\n", available_space());
+  printf("%d\n", total_disk_space());
   return 0;
 }
 #endif
