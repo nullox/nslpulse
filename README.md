@@ -1,10 +1,10 @@
 NSL Pulse
 =========
 
-Drops useful summary data concerning an active LAMP stack server. May be
+Drops useful summary data concerning an active remote server. May be
 utilised by an autonomous client to sweep across a cluster of servers to
 pinpoint those approaching load capacities and maintain an eye on running
-database processes.
+database processes and critical infrastructure.
 
 Clients may thereafter be configured to dispatch alerts to admin personnel
 to address these key infrastructural concerns.
