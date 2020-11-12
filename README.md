@@ -19,6 +19,8 @@ Support
 Support our works through donations, we accept bitcoin, ethereum and verus coin.
 
 BTC Donation: 3NQBVhxMrJpVeCViZNiHLouLgrCUXbL18C
+
 ETH Donation: 0x4C11E15Df5483Fd94Ae474311C9741041eB451ed
+
 VRSC Donation: RMm4wJ74eHBzuXhJ9MLsAvUQP925YmDUnp
 
