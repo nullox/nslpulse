@@ -130,12 +130,6 @@ static const char DAEMON_KEY[] = "NSLPULSE_PUBLIC_DEMO";
 /* daemon port */
 static const char DAEMON_PORT[] = "50110";
 
-/* terminate server process command */
-static const char DAEMON_CMD_KPROC[] = "kserv";
-
-/* close connection command */
-static const char DAEMON_CMD_CLOSE[] = "dc";
-
 /* output delimitor */
 static const char DELIMITOR[] = ":";
 
@@ -419,7 +413,9 @@ int winmain() {
   uint32_t n;
   while(1)
   {
-    responder = accept(listener, NULL, NULL);
+    struct sockaddr_in sa = {0};
+    socklen_t socklen = sizeof(sa);
+    responder = accept(listener, (struct sockaddr *) &sa, &socklen);
     if (responder == INVALID_SOCKET) {
       printf("accept failed with error: %d\n", WSAGetLastError());
       closesocket(listener);
@@ -432,12 +428,13 @@ int winmain() {
       byteCount_t = recv(responder, sockdata, sockDataLength, 0);
       if ( byteCount_t > 0 && byteCount_t <= (SZ_BUFFER_LEN - 1) )
       {
-        /* add terminator */
-        sockdata[byteCount_t] = '\0';
         if (strcmp(sockdata, DAEMON_KEY) == 0) {
-          printf("valid authority key provided by client: %s\n", "CLIENT_IP_HERE");
+          char *c_ipaddr = inet_ntoa(sa.sin_addr);
+          printf("valid authority key provided by client: %s\n", c_ipaddr);
           char *ps = make_pulse_string();
           n = send(responder, ps, strlen(ps), 0);
+          if ( n != 0 )
+            printf("%s pulse sent to client %s\n", ps, c_ipaddr);
         }
         closesocket(responder);
         shutdown(responder, SD_BOTH);
@@ -480,7 +477,7 @@ int linmain() {
   while(1) {
   	sockfd = socket(AF_INET, SOCK_STREAM, 0);
   	if ( sockfd < 0 ) {
-  		perror("socket opneing ERROR");
+  		perror("socket opening ERROR");
   		continue;
   	}
   	bzero((char*)&serv_addr, sizeof(serv_addr));
@@ -532,7 +529,7 @@ int linmain() {
 #endif
 
 int main() {
-  printf("NSL Pulse Server (refer to https://www.nullox.com for documentation)\n\n");
+  printf("NSL Pulse Server (refer to https://www.nullox.com/docs/pulse/ for documentation)\n\n");
   printf("BTC Donation: 3NQBVhxMrJpVeCViZNiHLouLgrCUXbL18C\n");
   printf("ETH Donation: 0x4C11E15Df5483Fd94Ae474311C9741041eB451ed\n");
   printf("VRSC Donation: RMm4wJ74eHBzuXhJ9MLsAvUQP925YmDUnp\n\n");

@@ -13,8 +13,12 @@ Clients may thereafter be configured to dispatch alerts to admin personnel
 to address these key infrastructural concerns.
 
 Nullox Standard Library Component
-Copyright 2017 (c) Nullox Software
-Written by William Johnson <johnson@nullox.com>
+Copyright 2020 (c) Nullox Software
+
+NSL Pulse Server (refer to https://www.nullox.com for documentation)
+BTC Donation: 3NQBVhxMrJpVeCViZNiHLouLgrCUXbL18C
+ETH Donation: 0x4C11E15Df5483Fd94Ae474311C9741041eB451ed
+VRSC Donation: RMm4wJ74eHBzuXhJ9MLsAvUQP925YmDUnp
 
 LICENSE:
 
