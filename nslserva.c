@@ -11,8 +11,7 @@ Clients may thereafter be configured to dispatch alerts to admin personnel
 to address these key infrastructural concerns.
 
 Nullox Standard Library Component
-Copyright 2017 (c) Nullox Software
-Written by William Johnson <johnson@nullox.com>
+Copyright 2020 (c) Nullox Software
 
 LICENSE:
 
@@ -50,7 +49,7 @@ DEPLOYMENT NOTES:
 2. Change the port to prevent autonomous landers.
 
 3. Keep a secure note of all keys you generate for daemon deployment
-   and configure your client to point to the location of the server.
+   and configure your client to point to the location of your server(s).
 */
 #include <stdio.h>
 #include <stdint.h>
@@ -77,6 +76,10 @@ compile on windows: gcc nslserva.c -o nslserva.exe -lpsapi -lws2_32
 #include <sys/types.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdio.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 /* system info struct */
 struct sysinfo s_info;
@@ -117,11 +120,15 @@ pid_t process_id(const char *pname) {
 
 #endif
 
+#if _POSIX_C_SOURCE >= 199309L
+#include <time.h> // +nanosleep
+#endif
+
 /* daemon key for pulse */
 static const char DAEMON_KEY[] = "NSLPULSE_PUBLIC_DEMO";
 
 /* daemon port */
-static const char DAEMONPORT[] = "50110";
+static const char DAEMON_PORT[] = "50110";
 
 /* terminate server process command */
 static const char DAEMON_CMD_KPROC[] = "kserv";
@@ -150,6 +157,22 @@ static const char DISK_MOUNT_POINT[] = "C:";
 #elif __linux__
 static const char DISK_MOUNT_POINT[] = "/home";
 #endif
+
+/* sleep function in milliseconds */
+void sleep_ms(uint32_t milliseconds) {
+#ifdef WIN32
+    Sleep(milliseconds);
+#elif _POSIX_C_SOURCE >= 199309L
+    struct timespec ts;
+    ts.tv_sec = milliseconds / 1000;
+    ts.tv_nsec = (milliseconds % 1000) * 1000000;
+    nanosleep(&ts, NULL);
+#else
+    if (milliseconds >= 1000)
+      sleep(milliseconds / 1000);
+    usleep((milliseconds % 1000) * 1000);
+#endif
+}
 
 /* available memory in kb */
 uint32_t available_memory() {
@@ -342,7 +365,7 @@ int winmain() {
   struct addrinfo hints;
 
   /* socket work variables */
-  char sockData[SZ_BUFFER_LEN];
+  char sockdata[SZ_BUFFER_LEN];
   int sockDataLength = SZ_BUFFER_LEN;
   uint32_t byteCount_t = 0;
 
@@ -358,7 +381,7 @@ int winmain() {
   hints.ai_protocol = IPPROTO_TCP;
   hints.ai_flags = AI_PASSIVE;
 
-  errorCode = getaddrinfo(NULL, DAEMONPORT, &hints, &result);
+  errorCode = getaddrinfo(NULL, DAEMON_PORT, &hints, &result);
   if ( errorCode != 0 ) {
     printf("getaddrinfo failed with error: %d\n", errorCode);
     WSACleanup();
@@ -393,11 +416,9 @@ int winmain() {
     return 1;
   }
 
-  uint8_t givenKey = 0;
-  uint32_t uploadCode;
+  uint32_t n;
   while(1)
   {
-    givenKey = 0;
     responder = accept(listener, NULL, NULL);
     if (responder == INVALID_SOCKET) {
       printf("accept failed with error: %d\n", WSAGetLastError());
@@ -408,44 +429,23 @@ int winmain() {
 
     do
     {
-      byteCount_t = recv(responder, sockData, sockDataLength, 0);
-      if ( byteCount_t > 0 && byteCount_t < (SZ_BUFFER_LEN - 1) )
+      byteCount_t = recv(responder, sockdata, sockDataLength, 0);
+      if ( byteCount_t > 0 && byteCount_t <= (SZ_BUFFER_LEN - 1) )
       {
         /* add terminator */
-        sockData[byteCount_t] = '\0';
-
-        if (strcmp(sockData, DAEMON_KEY) == 0) {
+        sockdata[byteCount_t] = '\0';
+        if (strcmp(sockdata, DAEMON_KEY) == 0) {
+          printf("valid authority key provided by client: %s\n", "CLIENT_IP_HERE");
           char *ps = make_pulse_string();
-          uploadCode = send(responder, ps, strlen(ps), 0);
-          givenKey = 1;
+          n = send(responder, ps, strlen(ps), 0);
         }
-        else if (givenKey && strcmp(sockData, DAEMON_CMD_CLOSE) == 0) {
-          closesocket(responder);
-          shutdown(responder, SD_BOTH);
-          byteCount_t = 0;
-        }
-        else if (givenKey && strcmp(sockData, DAEMON_CMD_KPROC) == 0) {
-          byteCount_t = 0;
-          closesocket(responder);
-          shutdown(responder, SD_BOTH);
-          closesocket(listener);
-          WSACleanup();
-          return 0;
-        }
-        else if ( givenKey == 0 ) {
-          closesocket(responder);
-          shutdown(responder, SD_BOTH);
-          byteCount_t = 0;
-        }
-
-        if ( uploadCode == SOCKET_ERROR ) {
-          shutdown(responder, SD_BOTH);
-          closesocket(responder);
-        }
+        closesocket(responder);
+        shutdown(responder, SD_BOTH);
+        byteCount_t = 0;
       }
     }
     while(byteCount_t > 0);
-    Sleep(1000);
+    sleep_ms(200);
   }
 
   closesocket(listener);
@@ -453,16 +453,89 @@ int winmain() {
   return 0;
 }
 #elif __linux__
-/* entry point for linux */
+char *get_client_ip(const struct sockaddr *sa, char *ipstr, uint16_t mlen)
+{
+	switch(sa->sa_family){
+		case AF_INET:
+		inet_ntop(AF_INET, &(((struct sockaddr_in*)sa)->sin_addr), ipstr, mlen);
+		break;
+		case AF_INET6:
+		inet_ntop(AF_INET6, &(((struct sockaddr_in6*)sa)->sin6_addr), ipstr, mlen);
+		break;
+		default:
+		strncpy(ipstr, "Unknown AF", mlen);
+		return NULL;
+	}
+	return ipstr;
+}
 int linmain() {
-  printf("%d\n", database_running());
-  printf("%d\n", available_space());
-  printf("%d\n", total_disk_space());
+
+  int32_t sockfd, newsockfd;
+  socklen_t clilen;
+  char sockdata[SZ_BUFFER_LEN];
+  struct sockaddr_in serv_addr, cli_addr;
+  int32_t n;
+  char c_ipaddr[64];
+
+  while(1) {
+  	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+  	if ( sockfd < 0 ) {
+  		perror("socket opneing ERROR");
+  		continue;
+  	}
+  	bzero((char*)&serv_addr, sizeof(serv_addr));
+  	serv_addr.sin_family = AF_INET;
+  	serv_addr.sin_addr.s_addr = INADDR_ANY;
+  	serv_addr.sin_port = htons(atoi(DAEMON_PORT));
+  	if ( bind(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0 ) {
+  		perror("socket binding ERROR");
+  		close(sockfd);
+  		continue;
+  	}
+  	printf("awaiting connection(s)...\n");
+  	listen(sockfd, 10);
+  	clilen = sizeof(cli_addr);
+  	newsockfd = accept(sockfd, (struct sockaddr*)&cli_addr, &clilen);
+  	if ( newsockfd < 0 ) {
+  		perror("socket accept ERROR");
+  		close(sockfd);
+  		continue;
+  	}
+  	bzero(sockdata, SZ_BUFFER_LEN);
+  	n = read(newsockfd, sockdata, SZ_BUFFER_LEN-1);
+  	if ( n < 0 ) {
+  		perror("socket read ERROR");
+  		close(newsockfd);
+  		close(sockfd);
+  		continue;
+  	}  	
+  	bzero(c_ipaddr, 64);
+  	if ( strcmp(sockdata, DAEMON_KEY) == 0 ) {
+  		/* ipv6 addresses consist of a max 39 characters */
+  		get_client_ip((struct sockaddr*)&cli_addr, c_ipaddr, 64);
+  		printf("valid authority key provided by client: %s\n", c_ipaddr);
+  		char* pulsestr = make_pulse_string();
+  		n = write(newsockfd, pulsestr, strlen(pulsestr));
+  		if ( n < 0 )
+  			perror("socket write ERROR");
+  		else
+  			printf("%s pulse sent to client %s\n", pulsestr, c_ipaddr);
+  	}
+  	else
+  		printf("invalid authority key provided by client: %s\n", c_ipaddr);
+  	close(newsockfd);
+  	close(sockfd);
+  	sleep_ms(200);
+  }
   return 0;
 }
 #endif
 
 int main() {
+  printf("NSL Pulse Server (refer to https://www.nullox.com for documentation)\n\n");
+  printf("BTC Donation: 3NQBVhxMrJpVeCViZNiHLouLgrCUXbL18C\n");
+  printf("ETH Donation: 0x4C11E15Df5483Fd94Ae474311C9741041eB451ed\n");
+  printf("VRSC Donation: RMm4wJ74eHBzuXhJ9MLsAvUQP925YmDUnp\n\n");
 #ifdef _WIN32
   return winmain();
 #elif __linux__
