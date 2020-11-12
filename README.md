@@ -11,7 +11,7 @@ to address these key infrastructural concerns.
 
 Reference
 =========
-1. (refer to https://www.nullox.com for documentation)
+1. (refer to https://www.nullox.com/docs/pulse/ for documentation)
 
 Support
 =======
