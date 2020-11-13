@@ -18,7 +18,7 @@ wget https://raw.githubusercontent.com/nullox/nslpulse/master/nslserva.c .
 gcc nslserva.c -o nslserva  
 ./nslserva -kSERVER_PASSWD_KEY  
 
-Use CTRL+C to terminate the running process.
+Use CTRL+C to terminate the running process. Change the substring SERVER_PASSWD_KEY to a unique key/passwd for your own infrastructure.
 
 Reference
 =========
