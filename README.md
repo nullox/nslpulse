@@ -16,7 +16,7 @@ Run these commands to quickly deploy NSL pulse onto your server:
 
 wget https://raw.githubusercontent.com/nullox/nslpulse/master/nslserva.c .  
 gcc nslserva.c -o nslserva  
-./nslserva  
+./nslserva -kSERVER_PASSWD_KEY  
 
 Use CTRL+C to terminate the running process.
 
