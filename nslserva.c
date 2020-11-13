@@ -346,7 +346,7 @@ char* make_pulse_string()
 
 #ifdef _WIN32
 /* entry point for windows */
-int winmain() {
+int winmain(char *authorityKey) {
 
   WSADATA wsaData;
 
@@ -413,6 +413,7 @@ int winmain() {
   uint32_t n;
   while(1)
   {
+    printf("awaiting connection(s)...\n");
     struct sockaddr_in sa = {0};
     socklen_t socklen = sizeof(sa);
     responder = accept(listener, (struct sockaddr *) &sa, &socklen);
@@ -428,7 +429,7 @@ int winmain() {
       byteCount_t = recv(responder, sockdata, sockDataLength, 0);
       if ( byteCount_t > 0 && byteCount_t <= (SZ_BUFFER_LEN - 1) )
       {
-        if (strcmp(sockdata, DAEMON_KEY) == 0) {
+        if (strcmp(sockdata, authorityKey) == 0) {
           char *c_ipaddr = inet_ntoa(sa.sin_addr);
           printf("valid authority key provided by client: %s\n", c_ipaddr);
           char *ps = make_pulse_string();
@@ -465,7 +466,7 @@ char *get_client_ip(const struct sockaddr *sa, char *ipstr, uint16_t mlen)
 	}
 	return ipstr;
 }
-int linmain() {
+int linmain(char *authorityKey) {
 
   int32_t sockfd, newsockfd;
   socklen_t clilen;
@@ -507,7 +508,7 @@ int linmain() {
   		continue;
   	}  	
   	bzero(c_ipaddr, 64);
-  	if ( strcmp(sockdata, DAEMON_KEY) == 0 ) {
+  	if ( strcmp(sockdata, authorityKey) == 0 ) {
   		/* ipv6 addresses consist of a max 39 characters */
   		get_client_ip((struct sockaddr*)&cli_addr, c_ipaddr, 64);
   		printf("valid authority key provided by client: %s\n", c_ipaddr);
@@ -528,14 +529,33 @@ int linmain() {
 }
 #endif
 
-int main() {
+void extract_key(char *str, size_t n)
+{
+  size_t l = strlen(str);
+  if ( n > l )
+    return;
+  memmove(str, str+n, l-n+1);
+}
+
+int main(int argc, char *argv[]) {
+  argc -= 1;
+  char *ak = (char *)DAEMON_KEY;
+  if ( argc >= 1 ) {
+    if ( strlen(argv[1]) >= 3 ) {
+      if ( argv[1][0] == '-' && argv[1][1] == 'k' ) {
+        extract_key(argv[1], 2);
+        ak = argv[1];
+      }
+    }
+  }
   printf("NSL Pulse Server (refer to https://www.nullox.com/docs/pulse/ for documentation)\n\n");
   printf("BTC Donation: 3NQBVhxMrJpVeCViZNiHLouLgrCUXbL18C\n");
   printf("ETH Donation: 0x4C11E15Df5483Fd94Ae474311C9741041eB451ed\n");
   printf("VRSC Donation: RMm4wJ74eHBzuXhJ9MLsAvUQP925YmDUnp\n\n");
+  printf("Authority key set to: %s\n\n", ak);
 #ifdef _WIN32
-  return winmain();
+  return winmain(ak);
 #elif __linux__
-  return linmain();
+  return linmain(ak);
 #endif
 }
